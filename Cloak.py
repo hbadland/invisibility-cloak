@@ -12,6 +12,26 @@ for _ in range(30): # Capture 30 frames
 
 bg_frame = np.flip(bg_frame, axis=1) # Flip the webcam needs to be flipped before loop
 
+HSV_RANGES = {
+    "blue": {
+        "lower": [np.array([90, 150, 50]), np.array([111, 100, 50])],
+        "upper": [np.array([110, 255, 255]), np.array([130, 255, 255])]
+    },
+    "red": {
+        "lower": [np.array([0, 120, 70]), np.array([170, 120, 70])],
+        "upper": [np.array([10, 255, 255]), np.array([180, 255, 255])]
+    },
+    "green": {
+        "lower": [np.array([35, 100, 50])],
+        "upper": [np.array([85, 255, 255])]
+    }
+}
+
+cloak_color = input("Choose cloak color (blue, red, green): ").strip().lower()
+if cloak_color not in HSV_RANGES:
+    print("Unsupported color.")
+    exit(1)
+
 while video.isOpened(): # Standard OpenCV loop to check video open
     success, frame = video.read()
     if not success:
@@ -21,21 +41,17 @@ while video.isOpened(): # Standard OpenCV loop to check video open
     hsv_img = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV) #HSV for filtering masking etc
     blurred_hsv = cv2.GaussianBlur(hsv_img, (35, 35), 0) # Reduce fluctuations / noise
 
-    # Range 1: deeper blue
-    lower_blue1 = np.array([90, 150, 50])
-    upper_blue1 = np.array([110, 255, 255])
+    # HSV bounds for selected color
+    lower_bounds = HSV_RANGES[cloak_color]["lower"]
+    upper_bounds = HSV_RANGES[cloak_color]["upper"]
 
-    # Range 2: lighter / more cyan blue
-    lower_blue2 = np.array([111, 100, 50])
-    upper_blue2 = np.array([130, 255, 255])
+    # Mask from HSV bands
+    mask = cv2.inRange(blurred_hsv, lower_bounds[0], upper_bounds[0])
+    for i in range(1, len(lower_bounds)):
+        mask |= cv2.inRange(blurred_hsv, lower_bounds[i], upper_bounds[i])
 
-    # Combine both ranges
-    mask1 = cv2.inRange(blurred_hsv, lower_blue1, upper_blue1)
-    mask2 = cv2.inRange(blurred_hsv, lower_blue2, upper_blue2)
-    mask = cv2.bitwise_or(mask1, mask2)
-
-    mask = cv2.morphologyEx(
-        mask, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
+    kernel = np.ones((5, 5), np.uint8)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
 
     # frame[np.where(mask == 255)] = bg_frame[np.where(mask == 255)]
 
